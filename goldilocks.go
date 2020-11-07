@@ -7,11 +7,8 @@ import (
 	"github.com/jackc/pgconn"
 )
 
-type DB struct {
-}
-
 type Conn struct {
-	PgConn *pgconn.PgConn
+	pgconn *pgconn.PgConn
 
 	paramValuesBuf []byte
 
@@ -42,7 +39,7 @@ func (c *Conn) Query(
 		return 0, err
 	}
 
-	rr := c.PgConn.ExecParams(ctx, sql, c.paramValues, c.paramOIDs, c.paramFormats, c.resultFormats)
+	rr := c.pgconn.ExecParams(ctx, sql, c.paramValues, c.paramOIDs, c.paramFormats, c.resultFormats)
 	defer rr.Close()
 
 	var rowCount int64
