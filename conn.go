@@ -20,6 +20,11 @@ type Conn struct {
 	valueReaderFuncs []valueReaderFunc
 }
 
+// NewConn creates a Conn from pgconn.
+func NewConn(pgconn *pgconn.PgConn) *Conn {
+	return &Conn{pgconn: pgconn}
+}
+
 type valueReaderFunc func([]byte) error
 
 func (c *Conn) Query(
