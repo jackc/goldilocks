@@ -261,6 +261,22 @@ func (p *Pool) Acquire(ctx context.Context, f func(*Conn) error) error {
 	return nil
 }
 
+func (p *Pool) Query(
+	ctx context.Context,
+	sql string,
+	args []interface{},
+	results []interface{},
+	rowFunc func() error,
+) (int64, error) {
+	var rowCount int64
+	err := p.Acquire(ctx, func(conn *Conn) error {
+		var err error
+		rowCount, err = conn.Query(ctx, sql, args, results, rowFunc)
+		return err
+	})
+	return rowCount, err
+}
+
 func (p *Pool) releaseConn(res *puddle.Resource) {
 	conn := res.Value().(*Conn)
 	now := time.Now()
