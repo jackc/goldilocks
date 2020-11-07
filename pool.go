@@ -245,7 +245,7 @@ func (p *Pool) checkMinConns() {
 	}
 }
 
-func (p *Pool) AcquireFunc(ctx context.Context, f func(*Conn) error) error {
+func (p *Pool) Acquire(ctx context.Context, f func(*Conn) error) error {
 	res, err := p.p.Acquire(ctx)
 	if err != nil {
 		return err

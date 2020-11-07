@@ -19,7 +19,7 @@ func TestPoolAcquireFunc(t *testing.T) {
 	var rowCount int64
 	var numbers []int32
 	var n int32
-	err = db.AcquireFunc(context.Background(), func(conn *goldilocks.Conn) error {
+	err = db.Acquire(context.Background(), func(conn *goldilocks.Conn) error {
 		var err error
 		rowCount, err = conn.Query(
 			context.Background(),
