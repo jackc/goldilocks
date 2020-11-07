@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"github.com/jackc/pgio"
 )
 
 const (
@@ -32,8 +34,9 @@ func readString(dst *string) (int16, valueReaderFunc) {
 	}
 }
 
-func writeString(src string) ([]byte, uint32, int16) {
-	return []byte(src), 0, textFormat
+func writeString(buf []byte, src string) ([]byte, uint32, int16) {
+	buf = append(buf, src...)
+	return buf, 0, textFormat
 }
 
 func readInt16(dst *int16) (int16, valueReaderFunc) {
@@ -49,10 +52,8 @@ func readInt16(dst *int16) (int16, valueReaderFunc) {
 	}
 }
 
-func writeInt16(src int16) ([]byte, uint32, int16) {
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(src))
-	return buf, int2OID, binaryFormat
+func writeInt16(buf []byte, src int16) ([]byte, uint32, int16) {
+	return pgio.AppendInt16(buf, src), int2OID, binaryFormat
 }
 
 func readInt32(dst *int32) (int16, valueReaderFunc) {
@@ -68,10 +69,8 @@ func readInt32(dst *int32) (int16, valueReaderFunc) {
 	}
 }
 
-func writeInt32(src int32) ([]byte, uint32, int16) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, uint32(src))
-	return buf, int4OID, binaryFormat
+func writeInt32(buf []byte, src int32) ([]byte, uint32, int16) {
+	return pgio.AppendInt32(buf, src), int4OID, binaryFormat
 }
 
 func readInt64(dst *int64) (int16, valueReaderFunc) {
@@ -87,10 +86,8 @@ func readInt64(dst *int64) (int16, valueReaderFunc) {
 	}
 }
 
-func writeInt64(src int64) ([]byte, uint32, int16) {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(src))
-	return buf, int8OID, binaryFormat
+func writeInt64(buf []byte, src int64) ([]byte, uint32, int16) {
+	return pgio.AppendInt64(buf, src), int8OID, binaryFormat
 }
 
 func readFloat32(dst *float32) (int16, valueReaderFunc) {
@@ -106,10 +103,8 @@ func readFloat32(dst *float32) (int16, valueReaderFunc) {
 	}
 }
 
-func writeFloat32(src float32) ([]byte, uint32, int16) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, math.Float32bits(src))
-	return buf, float4OID, binaryFormat
+func writeFloat32(buf []byte, src float32) ([]byte, uint32, int16) {
+	return pgio.AppendUint32(buf, math.Float32bits(src)), float4OID, binaryFormat
 }
 
 func readFloat64(dst *float64) (int16, valueReaderFunc) {
@@ -125,8 +120,6 @@ func readFloat64(dst *float64) (int16, valueReaderFunc) {
 	}
 }
 
-func writeFloat64(src float64) ([]byte, uint32, int16) {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, math.Float64bits(src))
-	return buf, float8OID, binaryFormat
+func writeFloat64(buf []byte, src float64) ([]byte, uint32, int16) {
+	return pgio.AppendUint64(buf, math.Float64bits(src)), float8OID, binaryFormat
 }
