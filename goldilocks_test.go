@@ -12,14 +12,14 @@ import (
 func TestConnQuery(t *testing.T) {
 	t.Parallel()
 
-	db, err := goldilocks.NewDB(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer db.Close()
 
 	var rowCount int64
 	var numbers []int32
 	var n int32
-	err = db.Do(context.Background(), func(conn *goldilocks.Conn) error {
+	err = db.AcquireFunc(context.Background(), func(conn *goldilocks.Conn) error {
 		var err error
 		rowCount, err = conn.Query(
 			context.Background(),
@@ -45,7 +45,7 @@ func TestConnQuery(t *testing.T) {
 func TestConnQueryBuiltinTypes(t *testing.T) {
 	t.Parallel()
 
-	db, err := goldilocks.NewDB(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -56,7 +56,7 @@ func TestConnQueryBuiltinTypes(t *testing.T) {
 	var i64 int64
 	var f32 float32
 	var f64 float64
-	err = db.Do(context.Background(), func(conn *goldilocks.Conn) error {
+	err = db.AcquireFunc(context.Background(), func(conn *goldilocks.Conn) error {
 		var err error
 		rowCount, err = conn.Query(
 			context.Background(),

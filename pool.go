@@ -17,9 +17,9 @@ var defaultMaxConnLifetime = time.Hour
 var defaultMaxConnIdleTime = time.Minute * 5
 var defaultHealthCheckPeriod = time.Minute
 
-type DB struct {
+type Pool struct {
 	p                 *puddle.Pool
-	config            *Config
+	config            *PoolConfig
 	minConns          int32
 	maxConnLifetime   time.Duration
 	maxConnIdleTime   time.Duration
@@ -27,9 +27,9 @@ type DB struct {
 	closeChan         chan struct{}
 }
 
-// Config is the configuration struct for creating a DB. It must be created by ParseConfig and then it can be
-// modified. A manually initialized Config will cause ConnectConfig to panic.
-type Config struct {
+// PoolConfig is the configuration struct for creating a DB. It must be created by ParsePoolConfig and then it can be
+// modified. A manually initialized PoolConfig will cause NewPoolConfig to panic.
+type PoolConfig struct {
 	pgconn.Config
 
 	// MaxConnLifetime is the duration since creation after which a connection will be automatically closed.
@@ -51,25 +51,25 @@ type Config struct {
 	createdByParseConfig bool // Used to enforce created by ParseConfig rule.
 }
 
-// NewDB creates a new DB from connStr. See ParseConfig for information on connString format.
-func NewDB(connString string) (*DB, error) {
-	config, err := ParseConfig(connString)
+// NewPool creates a new Pool from connStr. See ParsePoolConfig for information on connString format.
+func NewPool(connString string) (*Pool, error) {
+	config, err := ParsePoolConfig(connString)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewDBConfig(config)
+	return NewPoolConfig(config)
 }
 
-// NewDBConfig creates a new DB from config. config must have been created by ParseConfig.
-func NewDBConfig(config *Config) (*DB, error) {
+// NewPoolConfig creates a new Pool from config. config must have been created by ParseConfig.
+func NewPoolConfig(config *PoolConfig) (*Pool, error) {
 	// Default values are set in ParseConfig. Enforce initial creation by ParseConfig rather than setting defaults from
 	// zero values.
 	if !config.createdByParseConfig {
 		panic("config must be created by ParseConfig")
 	}
 
-	p := &DB{
+	p := &Pool{
 		config:            config,
 		minConns:          config.MinConns,
 		maxConnLifetime:   config.MaxConnLifetime,
@@ -107,7 +107,7 @@ func NewDBConfig(config *Config) (*DB, error) {
 	return p, nil
 }
 
-// ParseConfig builds a Config from connString. It parses connString with the same behavior as pgconn.ParseConfig with the
+// ParsePoolConfig builds a Config from connString. It parses connString with the same behavior as pgconn.ParsePoolConfig with the
 // addition of the following variables:
 //
 // pool_max_conns: integer greater than 0
@@ -123,13 +123,13 @@ func NewDBConfig(config *Config) (*DB, error) {
 //
 //   # Example URL
 //   postgres://jack:secret@pg.example.com:5432/mydb?sslmode=verify-ca&pool_max_conns=10
-func ParseConfig(connString string) (*Config, error) {
+func ParsePoolConfig(connString string) (*PoolConfig, error) {
 	pgconnConfig, err := pgconn.ParseConfig(connString)
 	if err != nil {
 		return nil, err
 	}
 
-	config := &Config{
+	config := &PoolConfig{
 		Config:               *pgconnConfig,
 		createdByParseConfig: true,
 	}
@@ -200,34 +200,34 @@ func ParseConfig(connString string) (*Config, error) {
 
 // Close closes all connections in the pool and rejects future Acquire calls. Blocks until all connections are returned
 // to pool and closed.
-func (db *DB) Close() {
-	close(db.closeChan)
-	db.p.Close()
+func (p *Pool) Close() {
+	close(p.closeChan)
+	p.p.Close()
 }
 
-func (db *DB) backgroundHealthCheck() {
-	ticker := time.NewTicker(db.healthCheckPeriod)
+func (p *Pool) backgroundHealthCheck() {
+	ticker := time.NewTicker(p.healthCheckPeriod)
 
 	for {
 		select {
-		case <-db.closeChan:
+		case <-p.closeChan:
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			db.checkIdleConnsHealth()
-			db.checkMinConns()
+			p.checkIdleConnsHealth()
+			p.checkMinConns()
 		}
 	}
 }
 
-func (db *DB) checkIdleConnsHealth() {
-	resources := db.p.AcquireAllIdle()
+func (p *Pool) checkIdleConnsHealth() {
+	resources := p.p.AcquireAllIdle()
 
 	now := time.Now()
 	for _, res := range resources {
-		if now.Sub(res.CreationTime()) > db.maxConnLifetime {
+		if now.Sub(res.CreationTime()) > p.maxConnLifetime {
 			res.Destroy()
-		} else if res.IdleDuration() > db.maxConnIdleTime {
+		} else if res.IdleDuration() > p.maxConnIdleTime {
 			res.Destroy()
 		} else {
 			res.ReleaseUnused()
@@ -235,22 +235,22 @@ func (db *DB) checkIdleConnsHealth() {
 	}
 }
 
-func (db *DB) checkMinConns() {
-	for i := db.minConns - db.PoolStats().TotalConns(); i > 0; i-- {
+func (p *Pool) checkMinConns() {
+	for i := p.minConns - p.PoolStats().TotalConns(); i > 0; i-- {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
-			db.p.CreateResource(ctx)
+			p.p.CreateResource(ctx)
 		}()
 	}
 }
 
-func (db *DB) Do(ctx context.Context, f func(*Conn) error) error {
-	res, err := db.p.Acquire(ctx)
+func (p *Pool) AcquireFunc(ctx context.Context, f func(*Conn) error) error {
+	res, err := p.p.Acquire(ctx)
 	if err != nil {
 		return err
 	}
-	defer db.releaseConn(res)
+	defer p.releaseConn(res)
 
 	conn := res.Value().(*Conn)
 	err = f(conn)
@@ -261,10 +261,10 @@ func (db *DB) Do(ctx context.Context, f func(*Conn) error) error {
 	return nil
 }
 
-func (db *DB) releaseConn(res *puddle.Resource) {
+func (p *Pool) releaseConn(res *puddle.Resource) {
 	conn := res.Value().(*Conn)
 	now := time.Now()
-	if conn.pgconn.IsClosed() || conn.pgconn.IsBusy() || conn.pgconn.TxStatus() != 'I' || (now.Sub(res.CreationTime()) > db.maxConnLifetime) {
+	if conn.pgconn.IsClosed() || conn.pgconn.IsBusy() || conn.pgconn.TxStatus() != 'I' || (now.Sub(res.CreationTime()) > p.maxConnLifetime) {
 		res.Destroy()
 		return
 	}
@@ -272,8 +272,8 @@ func (db *DB) releaseConn(res *puddle.Resource) {
 	res.Release()
 }
 
-func (db *DB) PoolStats() *PoolStats {
-	return &PoolStats{s: db.p.Stat()}
+func (p *Pool) PoolStats() *PoolStats {
+	return &PoolStats{s: p.p.Stat()}
 }
 
 type PoolStats struct {
