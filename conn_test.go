@@ -45,11 +45,11 @@ func TestConnQuery(t *testing.T) {
 	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer closePgConn(t, pgConn)
-	conn := goldilocks.NewConn(pgConn)
+	db := goldilocks.NewConn(pgConn)
 
 	var numbers []int32
 	var n int32
-	rowCount, err := conn.Query(
+	rowCount, err := db.Query(
 		context.Background(),
 		"select n from generate_series(1, 5) n",
 		nil,
@@ -72,7 +72,7 @@ func TestConnQueryBuiltinTypes(t *testing.T) {
 	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer closePgConn(t, pgConn)
-	conn := goldilocks.NewConn(pgConn)
+	db := goldilocks.NewConn(pgConn)
 
 	var s string
 	var i16 int16
@@ -80,7 +80,7 @@ func TestConnQueryBuiltinTypes(t *testing.T) {
 	var i64 int64
 	var f32 float32
 	var f64 float64
-	rowCount, err := conn.Query(
+	rowCount, err := db.Query(
 		context.Background(),
 		"select $1, $2, $3, $4, $5, $6",
 		[]interface{}{"foo", int16(1), int32(2), int64(3), float32(1.23), float64(4.56)},
@@ -107,25 +107,25 @@ func TestConnExec(t *testing.T) {
 	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer closePgConn(t, pgConn)
-	conn := goldilocks.NewConn(pgConn)
+	db := goldilocks.NewConn(pgConn)
 
-	rowsAffected, err := conn.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	rowsAffected, err := db.Exec(context.Background(), "create temporary table goldilocks (a text)")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, rowsAffected)
 
-	rowsAffected, err = conn.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	rowsAffected, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
 	require.NoError(t, err)
 	require.EqualValues(t, 1, rowsAffected)
 
-	rowsAffected, err = conn.Exec(context.Background(), "insert into goldilocks (a) values($1), ($2)", "foo", "bar")
+	rowsAffected, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1), ($2)", "foo", "bar")
 	require.NoError(t, err)
 	require.EqualValues(t, 2, rowsAffected)
 
-	rowsAffected, err = conn.Exec(context.Background(), "update goldilocks set a = $1", "baz")
+	rowsAffected, err = db.Exec(context.Background(), "update goldilocks set a = $1", "baz")
 	require.NoError(t, err)
 	require.EqualValues(t, 3, rowsAffected)
 
-	rowsAffected, err = conn.Exec(context.Background(), "delete from goldilocks")
+	rowsAffected, err = db.Exec(context.Background(), "delete from goldilocks")
 	require.NoError(t, err)
 	require.EqualValues(t, 3, rowsAffected)
 
@@ -138,21 +138,21 @@ func TestConnBeginCommit(t *testing.T) {
 	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer closePgConn(t, pgConn)
-	conn := goldilocks.NewConn(pgConn)
+	db := goldilocks.NewConn(pgConn)
 
-	_, err = conn.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	_, err = db.Exec(context.Background(), "create temporary table goldilocks (a text)")
 	require.NoError(t, err)
 
-	_, err = conn.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	_, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
 	require.NoError(t, err)
 
-	err = conn.Begin(context.Background(), func(conn goldilocks.StdDB) error {
-		_, err := conn.Exec(context.Background(), "delete from goldilocks")
+	err = db.Begin(context.Background(), func(db goldilocks.StdDB) error {
+		_, err := db.Exec(context.Background(), "delete from goldilocks")
 		return err
 	})
 	require.NoError(t, err)
 
-	rowsAffected, err := conn.Exec(context.Background(), "select * from goldilocks")
+	rowsAffected, err := db.Exec(context.Background(), "select * from goldilocks")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, rowsAffected)
 
@@ -165,22 +165,22 @@ func TestConnBeginFuncReturnsError(t *testing.T) {
 	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer closePgConn(t, pgConn)
-	conn := goldilocks.NewConn(pgConn)
+	db := goldilocks.NewConn(pgConn)
 
-	_, err = conn.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	_, err = db.Exec(context.Background(), "create temporary table goldilocks (a text)")
 	require.NoError(t, err)
 
-	_, err = conn.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	_, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
 	require.NoError(t, err)
 
-	err = conn.Begin(context.Background(), func(conn goldilocks.StdDB) error {
-		_, err := conn.Exec(context.Background(), "delete from goldilocks")
+	err = db.Begin(context.Background(), func(db goldilocks.StdDB) error {
+		_, err := db.Exec(context.Background(), "delete from goldilocks")
 		require.NoError(t, err)
 		return fmt.Errorf("some error")
 	})
 	require.EqualError(t, err, "some error")
 
-	rowsAffected, err := conn.Exec(context.Background(), "select * from goldilocks")
+	rowsAffected, err := db.Exec(context.Background(), "select * from goldilocks")
 	require.NoError(t, err)
 	require.EqualValues(t, 1, rowsAffected)
 
@@ -193,19 +193,19 @@ func TestConnBeginBrokenTxIsRolledBack(t *testing.T) {
 	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer closePgConn(t, pgConn)
-	conn := goldilocks.NewConn(pgConn)
+	db := goldilocks.NewConn(pgConn)
 
-	_, err = conn.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	_, err = db.Exec(context.Background(), "create temporary table goldilocks (a text)")
 	require.NoError(t, err)
 
-	_, err = conn.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	_, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
 	require.NoError(t, err)
 
-	err = conn.Begin(context.Background(), func(conn goldilocks.StdDB) error {
-		_, err := conn.Exec(context.Background(), "delete from goldilocks")
+	err = db.Begin(context.Background(), func(db goldilocks.StdDB) error {
+		_, err := db.Exec(context.Background(), "delete from goldilocks")
 		require.NoError(t, err)
 
-		_, err = conn.Exec(context.Background(), "select 1 / 0")
+		_, err = db.Exec(context.Background(), "select 1 / 0")
 		require.Error(t, err)
 		var pgErr *pgconn.PgError
 		require.True(t, errors.As(err, &pgErr))
@@ -215,7 +215,7 @@ func TestConnBeginBrokenTxIsRolledBack(t *testing.T) {
 	})
 	require.EqualError(t, err, "rolled back failed transaction")
 
-	rowsAffected, err := conn.Exec(context.Background(), "select * from goldilocks")
+	rowsAffected, err := db.Exec(context.Background(), "select * from goldilocks")
 	require.NoError(t, err)
 	require.EqualValues(t, 1, rowsAffected)
 

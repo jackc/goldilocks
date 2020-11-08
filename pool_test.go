@@ -12,16 +12,16 @@ import (
 func TestPoolAcquire(t *testing.T) {
 	t.Parallel()
 
-	pool, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
-	defer pool.Close()
+	defer db.Close()
 
 	var rowCount int64
 	var numbers []int32
 	var n int32
-	err = pool.Acquire(context.Background(), func(conn *goldilocks.Conn) error {
+	err = db.Acquire(context.Background(), func(db *goldilocks.Conn) error {
 		var err error
-		rowCount, err = conn.Query(
+		rowCount, err = db.Query(
 			context.Background(),
 			"select n from generate_series(1, 5) n",
 			nil,
@@ -45,13 +45,13 @@ func TestPoolAcquire(t *testing.T) {
 func TestPoolQuery(t *testing.T) {
 	t.Parallel()
 
-	pool, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
-	defer pool.Close()
+	defer db.Close()
 
 	var numbers []int32
 	var n int32
-	rowCount, err := pool.Query(
+	rowCount, err := db.Query(
 		context.Background(),
 		"select n from generate_series(1, 5) n",
 		nil,
@@ -69,27 +69,27 @@ func TestPoolQuery(t *testing.T) {
 func TestPoolExec(t *testing.T) {
 	t.Parallel()
 
-	pool, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
-	defer pool.Close()
+	defer db.Close()
 
-	rowsAffected, err := pool.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	rowsAffected, err := db.Exec(context.Background(), "create temporary table goldilocks (a text)")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, rowsAffected)
 
-	rowsAffected, err = pool.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	rowsAffected, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
 	require.NoError(t, err)
 	require.EqualValues(t, 1, rowsAffected)
 
-	rowsAffected, err = pool.Exec(context.Background(), "insert into goldilocks (a) values($1), ($2)", "foo", "bar")
+	rowsAffected, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1), ($2)", "foo", "bar")
 	require.NoError(t, err)
 	require.EqualValues(t, 2, rowsAffected)
 
-	rowsAffected, err = pool.Exec(context.Background(), "update goldilocks set a = $1", "baz")
+	rowsAffected, err = db.Exec(context.Background(), "update goldilocks set a = $1", "baz")
 	require.NoError(t, err)
 	require.EqualValues(t, 3, rowsAffected)
 
-	rowsAffected, err = pool.Exec(context.Background(), "delete from goldilocks")
+	rowsAffected, err = db.Exec(context.Background(), "delete from goldilocks")
 	require.NoError(t, err)
 	require.EqualValues(t, 3, rowsAffected)
 }
@@ -97,23 +97,23 @@ func TestPoolExec(t *testing.T) {
 func TestPoolBeginCommit(t *testing.T) {
 	t.Parallel()
 
-	pool, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
-	defer pool.Close()
+	defer db.Close()
 
-	_, err = pool.Exec(context.Background(), "create temporary table goldilocks (a text)")
-	require.NoError(t, err)
-
-	_, err = pool.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	_, err = db.Exec(context.Background(), "create temporary table goldilocks (a text)")
 	require.NoError(t, err)
 
-	err = pool.Begin(context.Background(), func(conn goldilocks.StdDB) error {
-		_, err := conn.Exec(context.Background(), "delete from goldilocks")
+	_, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	require.NoError(t, err)
+
+	err = db.Begin(context.Background(), func(db goldilocks.StdDB) error {
+		_, err := db.Exec(context.Background(), "delete from goldilocks")
 		return err
 	})
 	require.NoError(t, err)
 
-	rowsAffected, err := pool.Exec(context.Background(), "select * from goldilocks")
+	rowsAffected, err := db.Exec(context.Background(), "select * from goldilocks")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, rowsAffected)
 
