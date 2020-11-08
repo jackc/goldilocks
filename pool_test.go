@@ -61,7 +61,12 @@ func TestPoolStress(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	n := 100
+	var n int
+	if testing.Short() {
+		n = 10
+	} else {
+		n = 100
+	}
 	wg := &sync.WaitGroup{}
 
 	for i := 0; i < n; i++ {
