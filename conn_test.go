@@ -60,29 +60,7 @@ func TestConnQueryBuiltinTypes(t *testing.T) {
 	defer closePgConn(t, pgConn)
 	db := goldilocks.NewConn(pgConn)
 
-	var s string
-	var i16 int16
-	var i32 int32
-	var i64 int64
-	var f32 float32
-	var f64 float64
-	rowCount, err := db.Query(
-		context.Background(),
-		"select $1, $2, $3, $4, $5, $6",
-		[]interface{}{"foo", int16(1), int32(2), int64(3), float32(1.23), float64(4.56)},
-		[]interface{}{&s, &i16, &i32, &i64, &f32, &f64},
-		func() error {
-			return nil
-		},
-	)
-	require.NoError(t, err)
-	require.EqualValues(t, 1, rowCount)
-	require.Equal(t, "foo", s)
-	require.Equal(t, int16(1), i16)
-	require.Equal(t, int32(2), i32)
-	require.Equal(t, int64(3), i64)
-	require.Equal(t, float32(1.23), f32)
-	require.Equal(t, float64(4.56), f64)
+	testQueryBuiltinTypes(t, db)
 
 	ensurePgConnValid(t, pgConn)
 }

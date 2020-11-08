@@ -3,6 +3,7 @@ package goldilocks_test
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/jackc/goldilocks"
@@ -83,5 +84,30 @@ func TestPoolBeginCommit(t *testing.T) {
 	rowsAffected, err := db.Exec(context.Background(), "select * from goldilocks")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, rowsAffected)
+}
 
+func TestPoolStress(t *testing.T) {
+	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	require.NoError(t, err)
+	defer db.Close()
+
+	n := 100
+	wg := &sync.WaitGroup{}
+
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := db.Acquire(context.Background(), func(db *goldilocks.Conn) error {
+				testExec(t, db)
+				return nil
+			})
+			require.NoError(t, err)
+
+			testQuery(t, db)
+			testQueryBuiltinTypes(t, db)
+		}()
+	}
+
+	wg.Wait()
 }
