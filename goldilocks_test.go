@@ -35,7 +35,14 @@ func testQuery(t *testing.T, db goldilocks.StdDB) {
 }
 
 func testQueryBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
-	for i := 0; i < 100; i++ {
+	var n int
+	if testing.Short() {
+		n = 10
+	} else {
+		n = 100
+	}
+
+	for i := 0; i < n; i++ {
 		var s string
 		var i16 int16
 		var i32 int32
