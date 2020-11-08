@@ -105,6 +105,7 @@ func TestPoolStress(t *testing.T) {
 			require.NoError(t, err)
 
 			testQuery(t, db)
+			testQuerySkipsNilResults(t, db)
 			testQueryBuiltinTypes(t, db)
 		}()
 	}

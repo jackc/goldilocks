@@ -67,6 +67,21 @@ func testQueryBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 	}
 }
 
+func testQuerySkipsNilResults(t *testing.T, db goldilocks.StdDB) {
+	var a, c int32
+	rowCount, err := db.Query(
+		context.Background(),
+		"select 1, 2, 3",
+		nil,
+		[]interface{}{&a, nil, &c},
+		func() error { return nil },
+	)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rowCount)
+	require.EqualValues(t, 1, a)
+	require.EqualValues(t, 3, c)
+}
+
 func testExec(t *testing.T, db goldilocks.StdDB) {
 	rowsAffected, err := db.Exec(context.Background(), "create temporary table goldilocks (a text)")
 	require.NoError(t, err)

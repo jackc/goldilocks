@@ -226,7 +226,12 @@ func (c *Conn) prepareResults(results []interface{}) error {
 		case *float64:
 			format, fn = readFloat64(arg)
 		default:
-			return fmt.Errorf("results[%d] is unsupported type %T", i, results[i])
+			if results[i] == nil {
+				format = textFormat
+				fn = func([]byte) error { return nil }
+			} else {
+				return fmt.Errorf("results[%d] is unsupported type %T", i, results[i])
+			}
 		}
 
 		c.resultFormats[i] = format

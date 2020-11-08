@@ -65,6 +65,19 @@ func TestConnQueryBuiltinTypes(t *testing.T) {
 	ensurePgConnValid(t, pgConn)
 }
 
+func TestConnQuerySkipsNilResults(t *testing.T) {
+	t.Parallel()
+
+	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	require.NoError(t, err)
+	defer closePgConn(t, pgConn)
+	db := goldilocks.NewConn(pgConn)
+
+	testQuerySkipsNilResults(t, db)
+
+	ensurePgConnValid(t, pgConn)
+}
+
 func TestConnExec(t *testing.T) {
 	t.Parallel()
 
