@@ -9,6 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testStdDB(t *testing.T, db goldilocks.StdDB) {
+	t.Run("testQuery", func(t *testing.T) { testQuery(t, db) })
+	t.Run("testQueryBuiltinType", func(t *testing.T) { testQueryBuiltinTypes(t, db) })
+	t.Run("testQuerySkipsNilResults", func(t *testing.T) { testQuerySkipsNilResults(t, db) })
+	t.Run("testExec", func(t *testing.T) { testExec(t, db) })
+}
+
 func testQuery(t *testing.T, db goldilocks.StdDB) {
 	var numbers []int32
 	var n int32

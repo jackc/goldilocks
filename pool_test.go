@@ -24,42 +24,12 @@ func TestPoolAcquire(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestPoolQuery(t *testing.T) {
-	t.Parallel()
-
+func TestPoolStdDB(t *testing.T) {
 	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer db.Close()
 
-	testQuery(t, db)
-}
-
-func TestPoolExec(t *testing.T) {
-	t.Parallel()
-
-	db, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
-	require.NoError(t, err)
-	defer db.Close()
-
-	rowsAffected, err := db.Exec(context.Background(), "create temporary table goldilocks (a text)")
-	require.NoError(t, err)
-	require.EqualValues(t, 0, rowsAffected)
-
-	rowsAffected, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
-	require.NoError(t, err)
-	require.EqualValues(t, 1, rowsAffected)
-
-	rowsAffected, err = db.Exec(context.Background(), "insert into goldilocks (a) values($1), ($2)", "foo", "bar")
-	require.NoError(t, err)
-	require.EqualValues(t, 2, rowsAffected)
-
-	rowsAffected, err = db.Exec(context.Background(), "update goldilocks set a = $1", "baz")
-	require.NoError(t, err)
-	require.EqualValues(t, 3, rowsAffected)
-
-	rowsAffected, err = db.Exec(context.Background(), "delete from goldilocks")
-	require.NoError(t, err)
-	require.EqualValues(t, 3, rowsAffected)
+	testStdDB(t, db)
 }
 
 func TestPoolBeginCommit(t *testing.T) {

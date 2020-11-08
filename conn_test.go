@@ -39,54 +39,13 @@ func ensurePgConnValid(t *testing.T, pgConn *pgconn.PgConn) {
 	assert.Equal(t, "3", string(result.Rows[2][0]))
 }
 
-func TestConnQuery(t *testing.T) {
-	t.Parallel()
-
+func TestConnStd(t *testing.T) {
 	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
 	require.NoError(t, err)
 	defer closePgConn(t, pgConn)
 	db := goldilocks.NewConn(pgConn)
 
-	testQuery(t, db)
-
-	ensurePgConnValid(t, pgConn)
-}
-
-func TestConnQueryBuiltinTypes(t *testing.T) {
-	t.Parallel()
-
-	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
-	require.NoError(t, err)
-	defer closePgConn(t, pgConn)
-	db := goldilocks.NewConn(pgConn)
-
-	testQueryBuiltinTypes(t, db)
-
-	ensurePgConnValid(t, pgConn)
-}
-
-func TestConnQuerySkipsNilResults(t *testing.T) {
-	t.Parallel()
-
-	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
-	require.NoError(t, err)
-	defer closePgConn(t, pgConn)
-	db := goldilocks.NewConn(pgConn)
-
-	testQuerySkipsNilResults(t, db)
-
-	ensurePgConnValid(t, pgConn)
-}
-
-func TestConnExec(t *testing.T) {
-	t.Parallel()
-
-	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
-	require.NoError(t, err)
-	defer closePgConn(t, pgConn)
-	db := goldilocks.NewConn(pgConn)
-
-	testExec(t, db)
+	testStdDB(t, db)
 
 	ensurePgConnValid(t, pgConn)
 }
