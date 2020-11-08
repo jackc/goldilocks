@@ -261,13 +261,7 @@ func (p *Pool) Acquire(ctx context.Context, f func(*Conn) error) error {
 	return nil
 }
 
-func (p *Pool) Query(
-	ctx context.Context,
-	sql string,
-	args []interface{},
-	results []interface{},
-	rowFunc func() error,
-) (int64, error) {
+func (p *Pool) Query(ctx context.Context, sql string, args []interface{}, results []interface{}, rowFunc func() error) (int64, error) {
 	var rowCount int64
 	err := p.Acquire(ctx, func(conn *Conn) error {
 		var err error
@@ -285,6 +279,12 @@ func (p *Pool) Exec(ctx context.Context, sql string, args ...interface{}) (int64
 		return err
 	})
 	return rowCount, err
+}
+
+func (p *Pool) Begin(ctx context.Context, f func(StdDB) error) error {
+	return p.Acquire(ctx, func(conn *Conn) error {
+		return conn.Begin(ctx, f)
+	})
 }
 
 func (p *Pool) releaseConn(res *puddle.Resource) {

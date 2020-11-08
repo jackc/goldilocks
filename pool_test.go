@@ -93,3 +93,28 @@ func TestPoolExec(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 3, rowsAffected)
 }
+
+func TestPoolBeginCommit(t *testing.T) {
+	t.Parallel()
+
+	pool, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	require.NoError(t, err)
+	defer pool.Close()
+
+	_, err = pool.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	require.NoError(t, err)
+
+	_, err = pool.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	require.NoError(t, err)
+
+	err = pool.Begin(context.Background(), func(conn goldilocks.StdDB) error {
+		_, err := conn.Exec(context.Background(), "delete from goldilocks")
+		return err
+	})
+	require.NoError(t, err)
+
+	rowsAffected, err := pool.Exec(context.Background(), "select * from goldilocks")
+	require.NoError(t, err)
+	require.EqualValues(t, 0, rowsAffected)
+
+}

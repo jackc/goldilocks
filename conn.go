@@ -27,13 +27,7 @@ func NewConn(pgconn *pgconn.PgConn) *Conn {
 
 type valueReaderFunc func([]byte) error
 
-func (c *Conn) Query(
-	ctx context.Context,
-	sql string,
-	args []interface{},
-	results []interface{},
-	rowFunc func() error,
-) (int64, error) {
+func (c *Conn) Query(ctx context.Context, sql string, args []interface{}, results []interface{}, rowFunc func() error) (int64, error) {
 	err := c.prepareParams(args)
 	if err != nil {
 		return 0, err
@@ -89,6 +83,41 @@ func (c *Conn) Exec(ctx context.Context, sql string, args ...interface{}) (int64
 	c.releaseOversizedParamValuesBuf()
 
 	return commandTag.RowsAffected(), nil
+}
+
+func (c *Conn) Begin(ctx context.Context, f func(StdDB) error) error {
+	err := c.pgconn.Exec(ctx, "begin").Close()
+	if err != nil {
+		return err
+	}
+	txInProgress := true
+	rollback := func() {
+		if txInProgress == true {
+			err := c.pgconn.Exec(ctx, "rollback").Close()
+			if err != nil {
+				c.pgconn.Close(context.Background())
+			}
+			txInProgress = false
+		}
+	}
+	defer rollback()
+
+	err = f(c)
+	if err != nil {
+		return err
+	}
+
+	switch txStatus := c.pgconn.TxStatus(); txStatus {
+	case 'T':
+		return c.pgconn.Exec(ctx, "commit").Close()
+	case 'E':
+		rollback()
+		return fmt.Errorf("rolled back failed transaction")
+	case 'I':
+		return fmt.Errorf("not in transaction after calling f")
+	default:
+		return fmt.Errorf("impossible txStatus: %v", txStatus)
+	}
 }
 
 func (c *Conn) prepareParams(args []interface{}) error {
