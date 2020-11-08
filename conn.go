@@ -239,13 +239,11 @@ func (c *Conn) prepareResults(results []interface{}) error {
 		case ResultDecoder:
 			format = arg.ResultFormat()
 			fn = arg.DecodeResult
+		case nil:
+			format = textFormat
+			fn = func([]byte) error { return nil }
 		default:
-			if results[i] == nil {
-				format = textFormat
-				fn = func([]byte) error { return nil }
-			} else {
-				return fmt.Errorf("results[%d] is unsupported type %T", i, results[i])
-			}
+			return fmt.Errorf("results[%d] is unsupported type %T", i, results[i])
 		}
 
 		c.resultFormats[i] = format
