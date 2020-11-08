@@ -11,9 +11,10 @@ import (
 
 func testStdDB(t *testing.T, db goldilocks.StdDB) {
 	t.Run("testQuery", func(t *testing.T) { testQuery(t, db) })
-	t.Run("testQueryBuiltinType", func(t *testing.T) { testQueryBuiltinTypes(t, db) })
+	t.Run("testQueryGoBuiltinTypes", func(t *testing.T) { testQueryGoBuiltinTypes(t, db) })
 	t.Run("testQuerySkipsNilResults", func(t *testing.T) { testQuerySkipsNilResults(t, db) })
 	t.Run("testExec", func(t *testing.T) { testExec(t, db) })
+	t.Run("testQueryParamEncodersAndResultDecoders", func(t *testing.T) { testQueryParamEncodersAndResultDecoders(t, db) })
 }
 
 func testQuery(t *testing.T, db goldilocks.StdDB) {
@@ -34,7 +35,7 @@ func testQuery(t *testing.T, db goldilocks.StdDB) {
 	require.Equal(t, []int32{1, 2, 3, 4, 5}, numbers)
 }
 
-func testQueryBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
+func testQueryGoBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 	var n int
 	if testing.Short() {
 		n = 10
@@ -78,6 +79,82 @@ func testQueryBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 		require.Equal(t, int64(3), i64)
 		require.Equal(t, float32(1.23), f32)
 		require.Equal(t, float64(4.56), f64)
+	}
+}
+
+func testQueryParamEncodersAndResultDecoders(t *testing.T, db goldilocks.StdDB) {
+	var n int
+	if testing.Short() {
+		n = 10
+	} else {
+		n = 100
+	}
+
+	for i := 0; i < n; i++ {
+		str := goldilocks.NullString{"foo", true}
+		resStr := goldilocks.NullString{}
+		nullStr := goldilocks.NullString{}
+		nullResStr := goldilocks.NullString{}
+
+		i16 := goldilocks.NullInt16{42, true}
+		resI16 := goldilocks.NullInt16{}
+		nullI16 := goldilocks.NullInt16{}
+		nullResI16 := goldilocks.NullInt16{}
+
+		i32 := goldilocks.NullInt32{43, true}
+		resI32 := goldilocks.NullInt32{}
+		nullI32 := goldilocks.NullInt32{}
+		nullResI32 := goldilocks.NullInt32{}
+
+		i64 := goldilocks.NullInt64{44, true}
+		resI64 := goldilocks.NullInt64{}
+		nullI64 := goldilocks.NullInt64{}
+		nullResI64 := goldilocks.NullInt64{}
+
+		f32 := goldilocks.NullFloat32{43, true}
+		resF32 := goldilocks.NullFloat32{}
+		nullF32 := goldilocks.NullFloat32{}
+		nullResF32 := goldilocks.NullFloat32{}
+
+		f64 := goldilocks.NullFloat64{44, true}
+		resF64 := goldilocks.NullFloat64{}
+		nullF64 := goldilocks.NullFloat64{}
+		nullResF64 := goldilocks.NullFloat64{}
+
+		args := []interface{}{str, nullStr, i16, nullI16, i32, nullI32, i64, nullI64, f32, nullF32, f64, nullF64}
+		results := []interface{}{&resStr, &nullResStr, &resI16, &nullResI16, &resI32, &nullResI32, &resI64, &nullResI64, &resF32, &nullResF32, &resF64, &nullResF64}
+
+		// Shuffle order of arguments.
+		for j := 0; j < 10; j++ {
+			a := rand.Intn(len(args))
+			b := rand.Intn(len(args))
+			args[a], args[b] = args[b], args[a]
+			results[a], results[b] = results[b], results[a]
+		}
+
+		rowCount, err := db.Query(
+			context.Background(),
+			"select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12",
+			args,
+			results,
+			func() error {
+				return nil
+			},
+		)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, rowCount)
+		require.Equal(t, str, resStr)
+		require.Equal(t, nullStr, nullResStr)
+		require.Equal(t, i16, resI16)
+		require.Equal(t, nullI16, nullResI16)
+		require.Equal(t, i32, resI32)
+		require.Equal(t, nullI32, nullResI32)
+		require.Equal(t, i64, resI64)
+		require.Equal(t, nullI64, nullResI64)
+		require.Equal(t, f32, resF32)
+		require.Equal(t, nullF32, nullResF32)
+		require.Equal(t, f64, resF64)
+		require.Equal(t, nullF64, nullResF64)
 	}
 }
 

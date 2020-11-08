@@ -120,6 +120,10 @@ func (c *Conn) Begin(ctx context.Context, f func(StdDB) error) error {
 	}
 }
 
+type ParamEncoder interface {
+	EncodeParam(buf []byte) (valueBuf []byte, oid uint32, format int16)
+}
+
 func (c *Conn) prepareParams(args []interface{}) error {
 	if len(args) == 0 {
 		c.paramValues = c.paramValues[0:0]
@@ -167,6 +171,8 @@ func (c *Conn) prepareParams(args []interface{}) error {
 			value, oid, format = writeFloat32(c.paramValuesBuf, arg)
 		case float64:
 			value, oid, format = writeFloat64(c.paramValuesBuf, arg)
+		case ParamEncoder:
+			value, oid, format = arg.EncodeParam(c.paramValuesBuf)
 		default:
 			return fmt.Errorf("args[%d] is unsupported type %T", i, args[i])
 		}
@@ -183,6 +189,11 @@ func (c *Conn) prepareParams(args []interface{}) error {
 	}
 
 	return nil
+}
+
+type ResultDecoder interface {
+	ResultFormat() int16
+	DecodeResult([]byte) error
 }
 
 func (c *Conn) prepareResults(results []interface{}) error {
@@ -225,6 +236,9 @@ func (c *Conn) prepareResults(results []interface{}) error {
 			format, fn = readFloat32(arg)
 		case *float64:
 			format, fn = readFloat64(arg)
+		case ResultDecoder:
+			format = arg.ResultFormat()
+			fn = arg.DecodeResult
 		default:
 			if results[i] == nil {
 				format = textFormat

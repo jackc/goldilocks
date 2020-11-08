@@ -81,7 +81,7 @@ func TestPoolStress(t *testing.T) {
 
 			testQuery(t, db)
 			testQuerySkipsNilResults(t, db)
-			testQueryBuiltinTypes(t, db)
+			testQueryGoBuiltinTypes(t, db)
 		}()
 	}
 
