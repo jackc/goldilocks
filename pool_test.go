@@ -16,30 +16,11 @@ func TestPoolAcquire(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	var rowCount int64
-	var numbers []int32
-	var n int32
 	err = db.Acquire(context.Background(), func(db *goldilocks.Conn) error {
-		var err error
-		rowCount, err = db.Query(
-			context.Background(),
-			"select n from generate_series(1, 5) n",
-			nil,
-			[]interface{}{&n},
-			func() error {
-				numbers = append(numbers, n)
-				return nil
-			},
-		)
-		if err != nil {
-			return err
-		}
-
+		testQuery(t, db)
 		return nil
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 5, rowCount)
-	require.Equal(t, []int32{1, 2, 3, 4, 5}, numbers)
 }
 
 func TestPoolQuery(t *testing.T) {
@@ -49,21 +30,7 @@ func TestPoolQuery(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	var numbers []int32
-	var n int32
-	rowCount, err := db.Query(
-		context.Background(),
-		"select n from generate_series(1, 5) n",
-		nil,
-		[]interface{}{&n},
-		func() error {
-			numbers = append(numbers, n)
-			return nil
-		},
-	)
-	require.NoError(t, err)
-	require.EqualValues(t, 5, rowCount)
-	require.Equal(t, []int32{1, 2, 3, 4, 5}, numbers)
+	testQuery(t, db)
 }
 
 func TestPoolExec(t *testing.T) {
