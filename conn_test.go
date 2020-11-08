@@ -97,3 +97,34 @@ func TestConnQueryBuiltinTypes(t *testing.T) {
 
 	ensurePgConnValid(t, pgConn)
 }
+
+func TestConnExec(t *testing.T) {
+	t.Parallel()
+
+	pgConn, err := pgconn.Connect(context.Background(), os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	require.NoError(t, err)
+	defer closePgConn(t, pgConn)
+	conn := goldilocks.NewConn(pgConn)
+
+	rowsAffected, err := conn.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	require.NoError(t, err)
+	require.EqualValues(t, 0, rowsAffected)
+
+	rowsAffected, err = conn.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rowsAffected)
+
+	rowsAffected, err = conn.Exec(context.Background(), "insert into goldilocks (a) values($1), ($2)", "foo", "bar")
+	require.NoError(t, err)
+	require.EqualValues(t, 2, rowsAffected)
+
+	rowsAffected, err = conn.Exec(context.Background(), "update goldilocks set a = $1", "baz")
+	require.NoError(t, err)
+	require.EqualValues(t, 3, rowsAffected)
+
+	rowsAffected, err = conn.Exec(context.Background(), "delete from goldilocks")
+	require.NoError(t, err)
+	require.EqualValues(t, 3, rowsAffected)
+
+	ensurePgConnValid(t, pgConn)
+}

@@ -70,12 +70,25 @@ func (c *Conn) Query(
 		return rowCount, err
 	}
 
-	// Release
-	if len(c.paramValuesBuf)+512 < cap(c.paramValuesBuf)/2 {
-		c.paramValuesBuf = nil
-	}
+	c.releaseOversizedParamValuesBuf()
 
 	return rowCount, nil
+}
+
+func (c *Conn) Exec(ctx context.Context, sql string, args ...interface{}) (int64, error) {
+	err := c.prepareParams(args)
+	if err != nil {
+		return 0, err
+	}
+
+	commandTag, err := c.pgconn.ExecParams(ctx, sql, c.paramValues, c.paramOIDs, c.paramFormats, nil).Close()
+	if err != nil {
+		return 0, err
+	}
+
+	c.releaseOversizedParamValuesBuf()
+
+	return commandTag.RowsAffected(), nil
 }
 
 func (c *Conn) prepareParams(args []interface{}) error {
@@ -192,4 +205,10 @@ func (c *Conn) prepareResults(results []interface{}) error {
 	}
 
 	return nil
+}
+
+func (c *Conn) releaseOversizedParamValuesBuf() {
+	if len(c.paramValuesBuf)+512 < cap(c.paramValuesBuf)/2 {
+		c.paramValuesBuf = nil
+	}
 }

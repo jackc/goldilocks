@@ -65,3 +65,31 @@ func TestPoolQuery(t *testing.T) {
 	require.EqualValues(t, 5, rowCount)
 	require.Equal(t, []int32{1, 2, 3, 4, 5}, numbers)
 }
+
+func TestPoolExec(t *testing.T) {
+	t.Parallel()
+
+	pool, err := goldilocks.NewPool(os.Getenv("GOLDILOCKS_TEST_CONN_STRING"))
+	require.NoError(t, err)
+	defer pool.Close()
+
+	rowsAffected, err := pool.Exec(context.Background(), "create temporary table goldilocks (a text)")
+	require.NoError(t, err)
+	require.EqualValues(t, 0, rowsAffected)
+
+	rowsAffected, err = pool.Exec(context.Background(), "insert into goldilocks (a) values($1)", "foo")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rowsAffected)
+
+	rowsAffected, err = pool.Exec(context.Background(), "insert into goldilocks (a) values($1), ($2)", "foo", "bar")
+	require.NoError(t, err)
+	require.EqualValues(t, 2, rowsAffected)
+
+	rowsAffected, err = pool.Exec(context.Background(), "update goldilocks set a = $1", "baz")
+	require.NoError(t, err)
+	require.EqualValues(t, 3, rowsAffected)
+
+	rowsAffected, err = pool.Exec(context.Background(), "delete from goldilocks")
+	require.NoError(t, err)
+	require.EqualValues(t, 3, rowsAffected)
+}
