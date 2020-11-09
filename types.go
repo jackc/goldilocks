@@ -17,14 +17,15 @@ const (
 
 // PostgreSQL oids for builtin types
 const (
-	boolOID   = 16
-	int8OID   = 20
-	int2OID   = 21
-	int4OID   = 23
-	textOID   = 25
-	float4OID = 700
-	float8OID = 701
-	dateOID   = 1082
+	boolOID        = 16
+	int8OID        = 20
+	int2OID        = 21
+	int4OID        = 23
+	textOID        = 25
+	float4OID      = 700
+	float8OID      = 701
+	dateOID        = 1082
+	timestamptzOID = 1184
 )
 
 type nilSkip struct{}
@@ -558,4 +559,105 @@ func writeDate(buf []byte, src time.Time) ([]byte, uint32, int16) {
 	}
 
 	return pgio.AppendInt32(buf, daysSinceDateEpoch), dateOID, binaryFormat
+}
+
+type NullTime struct {
+	Value time.Time
+	Valid bool
+}
+
+func (n NullTime) EncodeParam(buf []byte) ([]byte, uint32, int16) {
+	if n.Valid {
+		return writeTime(buf, n.Value)
+	}
+	return nil, 0, binaryFormat
+}
+
+func (*NullTime) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (n *NullTime) DecodeResult(buf []byte) error {
+	if buf == nil {
+		*n = NullTime{Valid: false}
+		return nil
+	}
+
+	n.Valid = true
+	return readNotNullTime(buf, &n.Value)
+}
+
+// TimeNegativeInfinity represents the PostgreSQL timestamptz value -Infinity. It is less than all times the PostgreSQL
+// timestamptz type can represent.
+var TimeNegativeInfinity = time.Date(-9999999, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// TimeInfinity represents the PostgreSQL timestamp[tz] value Infinity. It is greater than all times the PostgreSQL
+// timestamptz type can represent.
+var TimeInfinity = time.Date(9999999, 1, 1, 0, 0, 0, 0, time.UTC)
+
+const (
+	microsecFromUnixEpochToY2K        = 946684800 * 1000000
+	negativeInfinityMicrosecondOffset = -9223372036854775808
+	infinityMicrosecondOffset         = 9223372036854775807
+)
+
+type notNullTime time.Time
+
+func (nn notNullTime) EncodeParam(buf []byte) ([]byte, uint32, int16) {
+	return writeDate(buf, time.Time(nn))
+}
+
+func (*notNullTime) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *notNullTime) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to time.Time")
+	}
+	return readNotNullTime(buf, (*time.Time)(nn))
+}
+
+func readTime(dst *time.Time) (int16, valueReaderFunc) {
+	return binaryFormat, func(buf []byte) error {
+		if buf == nil {
+			return errors.New("NULL cannot be converted to time.Time")
+		}
+		return readNotNullTime(buf, dst)
+	}
+}
+
+func readNotNullTime(buf []byte, dst *time.Time) error {
+	if len(buf) != 8 {
+		return fmt.Errorf("time.Time requires data length of 8, got %d", len(buf))
+	}
+
+	microsecSinceY2K := int64(binary.BigEndian.Uint64(buf))
+
+	switch microsecSinceY2K {
+	case infinityMicrosecondOffset:
+		*dst = TimeInfinity
+	case negativeInfinityMicrosecondOffset:
+		*dst = TimeNegativeInfinity
+	default:
+		microsecSinceUnixEpoch := microsecFromUnixEpochToY2K + microsecSinceY2K
+		*dst = time.Unix(microsecSinceUnixEpoch/1000000, (microsecSinceUnixEpoch%1000000)*1000)
+	}
+
+	return nil
+}
+
+func writeTime(buf []byte, src time.Time) ([]byte, uint32, int16) {
+	var microsecSinceY2K int64
+	switch src {
+	case TimeInfinity:
+		microsecSinceY2K = infinityMicrosecondOffset
+	case TimeNegativeInfinity:
+		microsecSinceY2K = negativeInfinityMicrosecondOffset
+	default:
+		microsecSinceUnixEpoch := src.Unix()*1000000 + int64(src.Nanosecond())/1000
+		microsecSinceY2K = microsecSinceUnixEpoch - microsecFromUnixEpochToY2K
+	}
+
+	return pgio.AppendInt64(buf, microsecSinceY2K), timestamptzOID, binaryFormat
 }

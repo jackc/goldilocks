@@ -3,6 +3,7 @@ package goldilocks
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgconn"
 )
@@ -173,6 +174,8 @@ func (c *Conn) prepareParams(args []interface{}) error {
 			value, oid, format = writeFloat64(c.paramValuesBuf, arg)
 		case bool:
 			value, oid, format = writeBool(c.paramValuesBuf, arg)
+		case time.Time:
+			value, oid, format = writeTime(c.paramValuesBuf, arg)
 		case ParamEncoder:
 			value, oid, format = arg.EncodeParam(c.paramValuesBuf)
 		default:
@@ -239,6 +242,8 @@ func (c *Conn) prepareResults(results []interface{}) error {
 			resultDecoder = (*notNullFloat64)(arg)
 		case *bool:
 			resultDecoder = (*notNullBool)(arg)
+		case *time.Time:
+			resultDecoder = (*notNullTime)(arg)
 		case ResultDecoder:
 			resultDecoder = arg
 		case nil:
