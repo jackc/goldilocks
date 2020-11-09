@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/jackc/pgio"
 )
@@ -23,6 +24,7 @@ const (
 	textOID   = 25
 	float4OID = 700
 	float8OID = 701
+	dateOID   = 1082
 )
 
 type nilSkip struct{}
@@ -455,4 +457,105 @@ func writeBool(buf []byte, src bool) ([]byte, uint32, int16) {
 		b = 1
 	}
 	return append(buf, b), boolOID, binaryFormat
+}
+
+type NullDate struct {
+	Value time.Time
+	Valid bool
+}
+
+func (n NullDate) EncodeParam(buf []byte) ([]byte, uint32, int16) {
+	if n.Valid {
+		return writeDate(buf, n.Value)
+	}
+	return nil, 0, binaryFormat
+}
+
+func (*NullDate) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (n *NullDate) DecodeResult(buf []byte) error {
+	if buf == nil {
+		*n = NullDate{Valid: false}
+		return nil
+	}
+
+	n.Valid = true
+	return readNotNullDate(buf, &n.Value)
+}
+
+// DateNegativeInfinity represents the PostgreSQL date value -Infinity. It is less than all dates the PostgreSQL date
+// type can represent.
+var DateNegativeInfinity = Date(time.Date(-9999999, 1, 1, 0, 0, 0, 0, time.UTC))
+
+// DateInfinity represents the PostgreSQL date value Infinity. It is greater than all dates the PostgreSQL date type
+// can represent.
+var DateInfinity = Date(time.Date(9999999, 1, 1, 0, 0, 0, 0, time.UTC))
+
+const (
+	negativeInfinityDayOffset = -2147483648
+	infinityDayOffset         = 2147483647
+)
+
+type Date time.Time
+
+func (nn Date) EncodeParam(buf []byte) ([]byte, uint32, int16) {
+	return writeDate(buf, time.Time(nn))
+}
+
+func (*Date) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *Date) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to time.Time")
+	}
+	return readNotNullDate(buf, (*time.Time)(nn))
+}
+
+func readDate(dst *time.Time) (int16, valueReaderFunc) {
+	return binaryFormat, func(buf []byte) error {
+		if buf == nil {
+			return errors.New("NULL cannot be converted to time.Time")
+		}
+		return readNotNullDate(buf, dst)
+	}
+}
+
+func readNotNullDate(buf []byte, dst *time.Time) error {
+	if len(buf) != 4 {
+		return fmt.Errorf("date requires data length of 4, got %d", len(buf))
+	}
+
+	dayOffset := int32(binary.BigEndian.Uint32(buf))
+
+	switch dayOffset {
+	case infinityDayOffset:
+		*dst = time.Time(DateInfinity)
+	case negativeInfinityDayOffset:
+		*dst = time.Time(DateNegativeInfinity)
+	default:
+		*dst = time.Date(2000, 1, int(1+dayOffset), 0, 0, 0, 0, time.UTC)
+	}
+	return nil
+}
+
+func writeDate(buf []byte, src time.Time) ([]byte, uint32, int16) {
+	tUnix := time.Date(src.Year(), src.Month(), src.Day(), 0, 0, 0, 0, time.UTC).Unix()
+	dateEpoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+
+	var daysSinceDateEpoch int32
+	switch Date(src) {
+	case DateInfinity:
+		daysSinceDateEpoch = infinityDayOffset
+	case DateNegativeInfinity:
+		daysSinceDateEpoch = negativeInfinityDayOffset
+	default:
+		secSinceDateEpoch := tUnix - dateEpoch
+		daysSinceDateEpoch = int32(secSinceDateEpoch / 86400)
+	}
+
+	return pgio.AppendInt32(buf, daysSinceDateEpoch), dateOID, binaryFormat
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/jackc/goldilocks"
 	"github.com/stretchr/testify/require"
@@ -51,9 +52,10 @@ func testQueryGoBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 		var f32 float32
 		var f64 float64
 		var b bool
+		var date time.Time
 
-		args := []interface{}{"foo", int16(1), int32(2), int64(3), float32(1.23), float64(4.56), true}
-		results := []interface{}{&s, &i16, &i32, &i64, &f32, &f64, &b}
+		args := []interface{}{"foo", int16(1), int32(2), int64(3), float32(1.23), float64(4.56), true, goldilocks.Date(time.Date(2020, 11, 9, 0, 0, 0, 0, time.UTC))}
+		results := []interface{}{&s, &i16, &i32, &i64, &f32, &f64, &b, (*goldilocks.Date)(&date)}
 
 		// Shuffle order of arguments.
 		for j := 0; j < 10; j++ {
@@ -65,7 +67,7 @@ func testQueryGoBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 
 		rowCount, err := db.Query(
 			context.Background(),
-			"select $1, $2, $3, $4, $5, $6, $7",
+			"select $1, $2, $3, $4, $5, $6, $7, $8",
 			args,
 			results,
 			func() error {
@@ -81,6 +83,7 @@ func testQueryGoBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 		require.Equal(t, float32(1.23), f32)
 		require.Equal(t, float64(4.56), f64)
 		require.Equal(t, true, b)
+		require.True(t, time.Date(2020, 11, 9, 0, 0, 0, 0, time.UTC).Equal(date))
 	}
 }
 
@@ -128,8 +131,13 @@ func testQueryParamEncodersAndResultDecoders(t *testing.T, db goldilocks.StdDB) 
 		nullB := goldilocks.NullBool{}
 		nullResB := goldilocks.NullBool{}
 
-		args := []interface{}{str, nullStr, i16, nullI16, i32, nullI32, i64, nullI64, f32, nullF32, f64, nullF64, b, nullB}
-		results := []interface{}{&resStr, &nullResStr, &resI16, &nullResI16, &resI32, &nullResI32, &resI64, &nullResI64, &resF32, &nullResF32, &resF64, &nullResF64, &resB, &nullResB}
+		date := goldilocks.NullDate{time.Date(2020, 11, 9, 0, 0, 0, 0, time.UTC), true}
+		resDate := goldilocks.NullDate{}
+		nullDate := goldilocks.NullDate{}
+		nullResDate := goldilocks.NullDate{}
+
+		args := []interface{}{str, nullStr, i16, nullI16, i32, nullI32, i64, nullI64, f32, nullF32, f64, nullF64, b, nullB, date, nullDate}
+		results := []interface{}{&resStr, &nullResStr, &resI16, &nullResI16, &resI32, &nullResI32, &resI64, &nullResI64, &resF32, &nullResF32, &resF64, &nullResF64, &resB, &nullResB, &resDate, &nullResDate}
 
 		// Shuffle order of arguments.
 		for j := 0; j < 10; j++ {
@@ -141,7 +149,7 @@ func testQueryParamEncodersAndResultDecoders(t *testing.T, db goldilocks.StdDB) 
 
 		rowCount, err := db.Query(
 			context.Background(),
-			"select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14",
+			"select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16",
 			args,
 			results,
 			func() error {
@@ -162,6 +170,9 @@ func testQueryParamEncodersAndResultDecoders(t *testing.T, db goldilocks.StdDB) 
 		require.Equal(t, nullF32, nullResF32)
 		require.Equal(t, f64, resF64)
 		require.Equal(t, nullF64, nullResF64)
+		require.True(t, date.Value.Equal(resDate.Value))
+		require.Equal(t, date.Valid, resDate.Valid)
+		require.Equal(t, nullDate, nullResDate)
 	}
 }
 
