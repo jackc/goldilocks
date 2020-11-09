@@ -16,8 +16,8 @@ type Conn struct {
 	paramOIDs    []uint32
 	paramFormats []int16
 
-	resultFormats    []int16
-	valueReaderFuncs []valueReaderFunc
+	resultFormats  []int16
+	resultDecoders []ResultDecoder
 }
 
 // NewConn creates a Conn from pgconn.
@@ -46,8 +46,8 @@ func (c *Conn) Query(ctx context.Context, sql string, args []interface{}, result
 		rowCount++
 
 		values := rr.Values()
-		for i := range c.valueReaderFuncs {
-			err := c.valueReaderFuncs[i](values[i])
+		for i := range c.resultDecoders {
+			err := c.resultDecoders[i].DecodeResult(values[i])
 			if err != nil {
 				return rowCount, err
 			}
@@ -199,7 +199,7 @@ type ResultDecoder interface {
 func (c *Conn) prepareResults(results []interface{}) error {
 	if len(results) == 0 {
 		c.resultFormats = c.resultFormats[0:0]
-		c.valueReaderFuncs = c.valueReaderFuncs[0:0]
+		c.resultDecoders = c.resultDecoders[0:0]
 		return nil
 	}
 
@@ -214,40 +214,37 @@ func (c *Conn) prepareResults(results []interface{}) error {
 			newCap = 64
 		}
 		c.resultFormats = make([]int16, len(results), newCap)
-		c.valueReaderFuncs = make([]valueReaderFunc, len(results), newCap)
+		c.resultDecoders = make([]ResultDecoder, len(results), newCap)
 	} else {
 		c.resultFormats = c.resultFormats[0:len(results)]
-		c.valueReaderFuncs = c.valueReaderFuncs[0:len(results)]
+		c.resultDecoders = c.resultDecoders[0:len(results)]
 	}
 
 	for i := range results {
-		var format int16
-		var fn valueReaderFunc
+		var resultDecoder ResultDecoder
 		switch arg := results[i].(type) {
 		case *string:
-			format, fn = readString(arg)
+			resultDecoder = (*notNullString)(arg)
 		case *int16:
-			format, fn = readInt16(arg)
+			resultDecoder = (*notNullInt16)(arg)
 		case *int32:
-			format, fn = readInt32(arg)
+			resultDecoder = (*notNullInt32)(arg)
 		case *int64:
-			format, fn = readInt64(arg)
+			resultDecoder = (*notNullInt64)(arg)
 		case *float32:
-			format, fn = readFloat32(arg)
+			resultDecoder = (*notNullFloat32)(arg)
 		case *float64:
-			format, fn = readFloat64(arg)
+			resultDecoder = (*notNullFloat64)(arg)
 		case ResultDecoder:
-			format = arg.ResultFormat()
-			fn = arg.DecodeResult
+			resultDecoder = arg
 		case nil:
-			format = textFormat
-			fn = func([]byte) error { return nil }
+			resultDecoder = nilSkip{}
 		default:
 			return fmt.Errorf("results[%d] is unsupported type %T", i, results[i])
 		}
 
-		c.resultFormats[i] = format
-		c.valueReaderFuncs[i] = fn
+		c.resultFormats[i] = resultDecoder.ResultFormat()
+		c.resultDecoders[i] = resultDecoder
 	}
 
 	return nil

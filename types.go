@@ -24,6 +24,16 @@ const (
 	float8OID = 701
 )
 
+type nilSkip struct{}
+
+func (nilSkip) ResultFormat() int16 {
+	return textFormat
+}
+
+func (nilSkip) DecodeResult(buf []byte) error {
+	return nil
+}
+
 type NullString struct {
 	Value string
 	Valid bool
@@ -48,6 +58,19 @@ func (n *NullString) DecodeResult(buf []byte) error {
 
 	n.Valid = true
 	return readNotNullString(buf, &n.Value)
+}
+
+type notNullString string
+
+func (*notNullString) ResultFormat() int16 {
+	return textFormat
+}
+
+func (nn *notNullString) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to string")
+	}
+	return readNotNullString(buf, (*string)(nn))
 }
 
 func readString(dst *string) (int16, valueReaderFunc) {
@@ -93,6 +116,19 @@ func (n *NullInt16) DecodeResult(buf []byte) error {
 
 	n.Valid = true
 	return readNotNullInt16(buf, &n.Value)
+}
+
+type notNullInt16 int16
+
+func (*notNullInt16) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *notNullInt16) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to int16")
+	}
+	return readNotNullInt16(buf, (*int16)(nn))
 }
 
 func readInt16(dst *int16) (int16, valueReaderFunc) {
@@ -142,6 +178,19 @@ func (n *NullInt32) DecodeResult(buf []byte) error {
 	return readNotNullInt32(buf, &n.Value)
 }
 
+type notNullInt32 int32
+
+func (*notNullInt32) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *notNullInt32) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to int32")
+	}
+	return readNotNullInt32(buf, (*int32)(nn))
+}
+
 func readInt32(dst *int32) (int16, valueReaderFunc) {
 	return binaryFormat, func(buf []byte) error {
 		if buf == nil {
@@ -187,6 +236,19 @@ func (n *NullInt64) DecodeResult(buf []byte) error {
 
 	n.Valid = true
 	return readNotNullInt64(buf, &n.Value)
+}
+
+type notNullInt64 int64
+
+func (*notNullInt64) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *notNullInt64) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to int64")
+	}
+	return readNotNullInt64(buf, (*int64)(nn))
 }
 
 func readInt64(dst *int64) (int16, valueReaderFunc) {
@@ -236,6 +298,19 @@ func (n *NullFloat32) DecodeResult(buf []byte) error {
 	return readNotNullFloat32(buf, &n.Value)
 }
 
+type notNullFloat32 float32
+
+func (*notNullFloat32) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *notNullFloat32) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to float32")
+	}
+	return readNotNullFloat32(buf, (*float32)(nn))
+}
+
 func readFloat32(dst *float32) (int16, valueReaderFunc) {
 	return binaryFormat, func(buf []byte) error {
 		if buf == nil {
@@ -281,6 +356,19 @@ func (n *NullFloat64) DecodeResult(buf []byte) error {
 
 	n.Valid = true
 	return readNotNullFloat64(buf, &n.Value)
+}
+
+type notNullFloat64 float64
+
+func (*notNullFloat64) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *notNullFloat64) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to float64")
+	}
+	return readNotNullFloat64(buf, (*float64)(nn))
 }
 
 func readFloat64(dst *float64) (int16, valueReaderFunc) {
