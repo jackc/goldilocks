@@ -50,9 +50,10 @@ func testQueryGoBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 		var i64 int64
 		var f32 float32
 		var f64 float64
+		var b bool
 
-		args := []interface{}{"foo", int16(1), int32(2), int64(3), float32(1.23), float64(4.56)}
-		results := []interface{}{&s, &i16, &i32, &i64, &f32, &f64}
+		args := []interface{}{"foo", int16(1), int32(2), int64(3), float32(1.23), float64(4.56), true}
+		results := []interface{}{&s, &i16, &i32, &i64, &f32, &f64, &b}
 
 		// Shuffle order of arguments.
 		for j := 0; j < 10; j++ {
@@ -64,7 +65,7 @@ func testQueryGoBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 
 		rowCount, err := db.Query(
 			context.Background(),
-			"select $1, $2, $3, $4, $5, $6",
+			"select $1, $2, $3, $4, $5, $6, $7",
 			args,
 			results,
 			func() error {
@@ -79,6 +80,7 @@ func testQueryGoBuiltinTypes(t *testing.T, db goldilocks.StdDB) {
 		require.Equal(t, int64(3), i64)
 		require.Equal(t, float32(1.23), f32)
 		require.Equal(t, float64(4.56), f64)
+		require.Equal(t, true, b)
 	}
 }
 
@@ -121,8 +123,13 @@ func testQueryParamEncodersAndResultDecoders(t *testing.T, db goldilocks.StdDB) 
 		nullF64 := goldilocks.NullFloat64{}
 		nullResF64 := goldilocks.NullFloat64{}
 
-		args := []interface{}{str, nullStr, i16, nullI16, i32, nullI32, i64, nullI64, f32, nullF32, f64, nullF64}
-		results := []interface{}{&resStr, &nullResStr, &resI16, &nullResI16, &resI32, &nullResI32, &resI64, &nullResI64, &resF32, &nullResF32, &resF64, &nullResF64}
+		b := goldilocks.NullBool{true, true}
+		resB := goldilocks.NullBool{}
+		nullB := goldilocks.NullBool{}
+		nullResB := goldilocks.NullBool{}
+
+		args := []interface{}{str, nullStr, i16, nullI16, i32, nullI32, i64, nullI64, f32, nullF32, f64, nullF64, b, nullB}
+		results := []interface{}{&resStr, &nullResStr, &resI16, &nullResI16, &resI32, &nullResI32, &resI64, &nullResI64, &resF32, &nullResF32, &resF64, &nullResF64, &resB, &nullResB}
 
 		// Shuffle order of arguments.
 		for j := 0; j < 10; j++ {
@@ -134,7 +141,7 @@ func testQueryParamEncodersAndResultDecoders(t *testing.T, db goldilocks.StdDB) 
 
 		rowCount, err := db.Query(
 			context.Background(),
-			"select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12",
+			"select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14",
 			args,
 			results,
 			func() error {

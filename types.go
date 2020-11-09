@@ -16,6 +16,7 @@ const (
 
 // PostgreSQL oids for builtin types
 const (
+	boolOID   = 16
 	int8OID   = 20
 	int2OID   = 21
 	int4OID   = 23
@@ -390,4 +391,68 @@ func readNotNullFloat64(buf []byte, dst *float64) error {
 
 func writeFloat64(buf []byte, src float64) ([]byte, uint32, int16) {
 	return pgio.AppendUint64(buf, math.Float64bits(src)), float8OID, binaryFormat
+}
+
+type NullBool struct {
+	Value bool
+	Valid bool
+}
+
+func (n NullBool) EncodeParam(buf []byte) ([]byte, uint32, int16) {
+	if n.Valid {
+		return writeBool(buf, n.Value)
+	}
+	return nil, 0, binaryFormat
+}
+
+func (*NullBool) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (n *NullBool) DecodeResult(buf []byte) error {
+	if buf == nil {
+		*n = NullBool{Valid: false}
+		return nil
+	}
+
+	n.Valid = true
+	return readNotNullBool(buf, &n.Value)
+}
+
+type notNullBool bool
+
+func (*notNullBool) ResultFormat() int16 {
+	return binaryFormat
+}
+
+func (nn *notNullBool) DecodeResult(buf []byte) error {
+	if buf == nil {
+		return errors.New("NULL cannot be converted to bool")
+	}
+	return readNotNullBool(buf, (*bool)(nn))
+}
+
+func readBool(dst *bool) (int16, valueReaderFunc) {
+	return binaryFormat, func(buf []byte) error {
+		if buf == nil {
+			return errors.New("NULL cannot be converted to bool")
+		}
+		return readNotNullBool(buf, dst)
+	}
+}
+
+func readNotNullBool(buf []byte, dst *bool) error {
+	if len(buf) != 1 {
+		return fmt.Errorf("bool requires data length of 1, got %d", len(buf))
+	}
+	*dst = buf[0] == 1
+	return nil
+}
+
+func writeBool(buf []byte, src bool) ([]byte, uint32, int16) {
+	var b byte
+	if src {
+		b = 1
+	}
+	return append(buf, b), boolOID, binaryFormat
 }
